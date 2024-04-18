@@ -1,3 +1,4 @@
+/* eslint-disable jsdoc/check-param-names */
 import type { Draft, Immutable } from 'immer';
 import { castImmutable, produce } from 'immer';
 import type { StateCreator, StoreApi, StoreMutatorIdentifier } from 'zustand';
@@ -105,6 +106,33 @@ interface CreateNibble {
     <T>(): <A>(getter: Getter<T, A>) => WithSetter<T, A, NibbleRecipe<T, A>>;
 }
 
+/**
+ * Defines a nibble.
+ * A nibble is a small piece of a larger state that can be shared with other parts of the application without exposing the entire state.
+ *
+ * To define a nibble, you need to provide a getter function that extracts the nibble from the parent state
+ * and a setter function that updates the nibble in the parent state.
+ * The setter function can be omitted if the nibble is an object, in which case the nibble will be updated by merging its state using Object.assign.
+ *
+ * The nibble can be defined with a parent store or as a recipe, in which case the parent store must be provided when creating a state/store instance.
+ * To create a state instance, call `createState` with your state creator function.
+ * To create a store api, call `createStore`. The store api (as well as get(), set() passed to the state creator) are simple wrappers operating on the parent store.
+ * Thus, it is perfectly fine to create multiple store instances from the same nibble and parent store.
+ *
+ *
+ * Typescript Usage:
+ * ```ts
+ * nibble(parentStore)(getter)(setter?);
+ * // or as recipe
+ * nibble<ParentState>()(getter)(setter?);
+ * ```
+ *
+ * @template T The type of the parent state. Must be provided when creating a recipe.
+ * @param api The parent store api. Optional, omit to create a recipe.
+ * @param getter A function that extracts the nibble from the parent state, e.g. `state => state.child`.
+ * @param setter A function that updates the nibble in the parent state. Can be omitted if the nibble is an object. E.g. `nextState => draft => void Object.assign(draft.child, nextState)`.
+ * @returns A nibble or nibble recipe.
+ */
 export const nibble: CreateNibble = (<T>(api?: StoreApi<T>) =>
     api
         ? <A>(getter: Getter<T, A>) => createNibbleWithGetter(api, getter)
