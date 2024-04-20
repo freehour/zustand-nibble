@@ -1,50 +1,44 @@
-/* eslint-disable jsdoc/check-param-names */
-import type { Draft, Immutable } from 'immer';
-import { castImmutable, produce } from 'immer';
+import type { Draft } from 'immer';
+import { castDraft, produce } from 'immer';
 import type { StateCreator, StoreApi, StoreMutatorIdentifier } from 'zustand';
 
-type Getter<T, A> = (state: Immutable<T>) => A;
+type Getter<T, A> = (state: T) => A;
 type Updater<T> = (draft: Draft<T>) => void;
-type Setter<T, A> = (nextState: A | Partial<A>) => T | Partial<T> | Updater<T>;
+type Setter<T, A> = (nextState: A | Partial<A>, replace: boolean) => T | Partial<T> | Updater<T>;
 type WithSetter<T, A, R> = A extends object ? (setter?: Setter<T, A>) => R : (setter: Setter<T, A>) => R;
 
 interface Nibble<A> {
-    createState: <
-        Mps extends [StoreMutatorIdentifier, unknown][] = [],
-        Mcs extends [StoreMutatorIdentifier, unknown][] = [],
-    >(
+    (): StoreApi<A>;
+    <Mps extends [StoreMutatorIdentifier, unknown][] = [], Mcs extends [StoreMutatorIdentifier, unknown][] = []>(
         f: StateCreator<A, Mps, Mcs>,
-    ) => A;
-
-    createStore: () => StoreApi<A>;
+    ): A;
 }
 
-interface NibbleRecipe<T, A> {
-    createState: <
-        Mps extends [StoreMutatorIdentifier, unknown][] = [],
-        Mcs extends [StoreMutatorIdentifier, unknown][] = [],
-    >(
+interface Recipe<T, A> {
+    (api: StoreApi<T>): StoreApi<A>;
+    <Mps extends [StoreMutatorIdentifier, unknown][] = [], Mcs extends [StoreMutatorIdentifier, unknown][] = []>(
         api: StoreApi<T>,
         f: StateCreator<A, Mps, Mcs>,
-    ) => A;
+    ): A;
+}
 
-    createStore: (api: StoreApi<T>) => StoreApi<A>;
+interface CreateNibble {
+    <T>(api: StoreApi<T>): <A>(getter: Getter<T, A>) => WithSetter<T, A, Nibble<A>>;
+    <T>(): <A>(getter: Getter<T, A>) => WithSetter<T, A, Recipe<T, A>>;
 }
 
 function creator<T, A>(getter: Getter<T, A>, setter: Setter<T, A>): StateCreator<T, [], [], StoreApi<A>> {
     return (set, get, api) => ({
-        getState: () => getter(castImmutable(get())),
-        getInitialState: () => getter(castImmutable(api.getInitialState())),
-        setState: nextState => {
+        getState: () => getter(get()),
+        getInitialState: () => getter(api.getInitialState()),
+        setState: (nextState, replace) => {
             const nextStateOrUpdater = setter(
-                nextState instanceof Function ? nextState(getter(castImmutable(get()))) : nextState,
+                nextState instanceof Function ? nextState(getter(get())) : nextState,
+                replace ?? false,
             );
             set(nextStateOrUpdater instanceof Function ? produce<T>(nextStateOrUpdater) : nextStateOrUpdater);
         },
-        subscribe: listener =>
-            api.subscribe((state, prevState) =>
-                listener(getter(castImmutable(state)), getter(castImmutable(prevState))),
-            ),
+        subscribe: listener => api.subscribe((state, prevState) => listener(getter(state), getter(prevState))),
         destroy: () => {
             throw new Error('Do not use destroy(), use unsubscribe returned by subscribe().');
         },
@@ -61,7 +55,25 @@ function createState<T, A>(api: StoreApi<T>, getter: Getter<T, A>, setter: Sette
 }
 
 function objectUpdater<T, A>(getter: Getter<T, A>): Setter<T, A> {
-    return nextState => (draft: Draft<T>) => void Object.assign(getter(draft) as object, nextState);
+    return (nextState, replace) => (draft: Draft<T>) => {
+        const childDraft = castDraft(getter(draft as T));
+        if (replace) {
+            if (Array.isArray(nextState) && Array.isArray(childDraft)) {
+                childDraft.length = 0;
+                childDraft.push(...nextState);
+            } else {
+                for (const key in childDraft) {
+                    if (Object.hasOwnProperty.call(childDraft, key)) {
+                        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+                        delete childDraft[key];
+                    }
+                }
+                Object.assign(childDraft as object, nextState);
+            }
+        } else {
+            Object.assign(childDraft as object, nextState);
+        }
+    };
 }
 
 function createNibbleWithSetter<T, A>(
@@ -69,20 +81,16 @@ function createNibbleWithSetter<T, A>(
     getter: Getter<T, A>,
     setter: Setter<T, A> = objectUpdater(getter),
 ): Nibble<A> {
-    return {
-        createState: f => createState(api, getter, setter, f as StateCreator<A>),
-        createStore: () => createStore(api, getter, setter),
-    };
+    return ((f?: StateCreator<A>) =>
+        f ? createState(api, getter, setter, f) : createStore(api, getter, setter)) as Nibble<A>;
 }
 
 function createNibbleRecipeWithSetter<T, A>(
     getter: Getter<T, A>,
     setter: Setter<T, A> = objectUpdater(getter),
-): NibbleRecipe<T, A> {
-    return {
-        createState: (api, f) => createState(api, getter, setter, f as StateCreator<A>),
-        createStore: api => createStore(api, getter, setter),
-    };
+): Recipe<T, A> {
+    return ((api: StoreApi<T>, f?: StateCreator<A>) =>
+        f ? createState(api, getter, setter, f) : createStore(api, getter, setter)) as Recipe<T, A>;
 }
 
 function createNibbleWithGetter<T, A>(api: StoreApi<T>, getter: Getter<T, A>): WithSetter<T, A, Nibble<A>> {
@@ -93,39 +101,51 @@ function createNibbleWithGetter<T, A>(api: StoreApi<T>, getter: Getter<T, A>): W
     >;
 }
 
-function createNibbleRecipeWithGetter<T, A>(getter: Getter<T, A>): WithSetter<T, A, NibbleRecipe<T, A>> {
+function createNibbleRecipeWithGetter<T, A>(getter: Getter<T, A>): WithSetter<T, A, Recipe<T, A>> {
     return ((setter: Setter<T, A> | undefined) => createNibbleRecipeWithSetter(getter, setter)) as WithSetter<
         T,
         A,
-        NibbleRecipe<T, A>
+        Recipe<T, A>
     >;
 }
 
-interface CreateNibble {
-    <T>(api: StoreApi<T>): <A>(getter: Getter<T, A>) => WithSetter<T, A, Nibble<A>>;
-    <T>(): <A>(getter: Getter<T, A>) => WithSetter<T, A, NibbleRecipe<T, A>>;
-}
-
+/* eslint-disable jsdoc/check-param-names */
 /**
+ *
  * Defines a nibble.
- * A nibble is a small piece of a larger state that can be shared with other parts of the application without exposing the entire state.
  *
- * To define a nibble, you need to provide a getter function that extracts the nibble from the parent state
- * and a setter function that updates the nibble in the parent state.
- * The setter function can be omitted if the nibble is an object, in which case the nibble will be updated by merging its state using Object.assign.
+ * A nibble is a function that creates a piece of a larger state.
+ * This state can then be shared with other parts of the application without exposing the parent state.
  *
- * The nibble can be defined with a parent store or as a recipe, in which case the parent store must be provided when creating a state/store instance.
- * To create a state instance, call `createState` with your state creator function.
- * To create a store api, call `createStore`. The store api (as well as get(), set() passed to the state creator) are simple wrappers operating on the parent store.
- * Thus, it is perfectly fine to create multiple store instances from the same nibble and parent store.
- *
- *
- * Typescript Usage:
+ * Usage:
  * ```ts
  * nibble(parentStore)(getter)(setter?);
- * // or as recipe
  * nibble<ParentState>()(getter)(setter?);
  * ```
+ *
+ * To define a nibble, you need to provide the following:
+ *  - A `getter` that extracts the nibble's state from the parent state
+ *  - A `setter` that updates the nibble's state in the parent state.
+ *    Can be omitted if the nibble is an object, in which case `Object.assign` is used to merge the state.
+ *  - Either the `parentStore` api or the `ParentState` type to create a recipe.
+ *
+ * When using a recipe the `parentStore` is provided later when creating a state or store instance.
+ *
+ * Example:
+ * ```ts
+ * const nib = nibble(parentStore)(getter)(setter); // Nibble<ChildState>
+ * const state = nib((set, get, api) => ({...})); // ChildState
+ * const store = nib(); // StoreApi<ChildState>
+ * ```
+ * As recipe:
+ * ```ts
+ * const nib = nibble<ParentState>()(getter)(setter); // Recipe<ParentState, ChildState>
+ * const state = nib(parentStore, (set, get, api) => ({...})); // ChildState
+ * const store = nib(parentStore); // StoreApi<ChildState>
+ * ```
+ *
+ * The store `api`, `get` and `set` are simple wrappers operating on the parent store.
+ * It is perfectly fine to create multiple store instances from the same nibble and parent store.
  *
  * @template T The type of the parent state. Must be provided when creating a recipe.
  * @param api The parent store api. Optional, omit to create a recipe.
@@ -133,7 +153,9 @@ interface CreateNibble {
  * @param setter A function that updates the nibble in the parent state. Can be omitted if the nibble is an object. E.g. `nextState => draft => void Object.assign(draft.child, nextState)`.
  * @returns A nibble or nibble recipe.
  */
-export const nibble: CreateNibble = (<T>(api?: StoreApi<T>) =>
+const nibble: CreateNibble = (<T>(api?: StoreApi<T>) =>
     api
         ? <A>(getter: Getter<T, A>) => createNibbleWithGetter(api, getter)
         : createNibbleRecipeWithGetter) as CreateNibble;
+
+export default nibble;
