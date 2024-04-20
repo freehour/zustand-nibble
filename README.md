@@ -34,7 +34,7 @@ const useParent = create<ParentState>()((set, get, api) => ({
 }));
 ```
 
-`nibble(api)(getter)(setter?)` recieves the following arguments:
+`nibble(api)(getter)(setter?)` receives the following arguments:
 
 -   The parent store `api`.
 -   A `getter` that extracts the child state from the parent state.
