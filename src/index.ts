@@ -4,7 +4,7 @@ import type { StateCreator, StoreApi, StoreMutatorIdentifier } from 'zustand';
 
 type Getter<T, A> = (state: T) => A;
 type Updater<T> = (draft: Draft<T>) => void;
-type Setter<T, A> = (nextState: A | Partial<A>, replace: boolean) => T | Partial<T> | Updater<T>;
+type Setter<T, A> = (nextState: A | Partial<A>, replace?: boolean) => T | Partial<T> | Updater<T>;
 type WithSetter<T, A, R> = A extends object ? (setter?: Setter<T, A>) => R : (setter: Setter<T, A>) => R;
 
 interface Nibble<A> {
@@ -34,7 +34,7 @@ function creator<T, A>(getter: Getter<T, A>, setter: Setter<T, A>): StateCreator
         setState: (nextState, replace) => {
             const nextStateOrUpdater = setter(
                 nextState instanceof Function ? nextState(getter(get())) : nextState,
-                replace ?? false,
+                replace,
             );
             set(nextStateOrUpdater instanceof Function ? produce<T>(nextStateOrUpdater) : nextStateOrUpdater);
         },
@@ -57,7 +57,7 @@ function createState<T, A>(api: StoreApi<T>, getter: Getter<T, A>, setter: Sette
 function objectUpdater<T, A>(getter: Getter<T, A>): Setter<T, A> {
     return (nextState, replace) => (draft: Draft<T>) => {
         const childDraft = castDraft(getter(draft as T));
-        if (replace) {
+        if (replace ?? false) {
             if (Array.isArray(nextState) && Array.isArray(childDraft)) {
                 childDraft.length = 0;
                 childDraft.push(...nextState);
