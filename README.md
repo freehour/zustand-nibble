@@ -4,7 +4,7 @@ Split a _zustand_ store into smaller pieces, called _nibbles_.
 Compared to [slices](https://docs.pmnd.rs/zustand/guides/slices-pattern) which are spread at the top-level of the store, nibbles can be placed **anywhere** in the parent store.
 
 ```typescript
-import { createStore } from 'zustand';
+import { type StateCreator, create } from 'zustand';
 import nibble from 'zustand-nibble';
 
 export interface ChildState {
@@ -82,7 +82,7 @@ const useMom = create<ParentState>()((set, get, api) => ({
 There is no state sharing through nibbles */
 ```
 
-## Creating a Store API
+## Create a Store API
 
 To create a store API for the child state, simply omit the state creator.
 
