@@ -4,10 +4,7 @@
     "useTabs": false,
     "singleQuote": true,
     "trailingComma": "all",
-    "plugins": ["@trivago/prettier-plugin-sort-imports"],
+    "plugins": ["prettier-plugin-organize-imports"],
     "arrowParens": "avoid",
-    "semi": true,
-    "importOrder": ["^\\w.*$", "^@.*$", "^[./].*$"],
-    "importOrderSeparation": true,
-    "importOrderSortSpecifiers": true
+    "semi": true
 }

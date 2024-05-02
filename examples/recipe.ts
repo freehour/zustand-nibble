@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import nibble from 'zustand-nibble';
 
-import { type ParentState, createJoe } from './state';
+import { createJoe, type ParentState } from './state';
 
 const createChild = nibble<ParentState>()(state => state.child)();
 
