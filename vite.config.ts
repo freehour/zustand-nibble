@@ -4,7 +4,6 @@ import dts from 'vite-plugin-dts';
 import { EsLinter, linterPlugin } from 'vite-plugin-linter';
 import tsConfigPaths from 'vite-tsconfig-paths';
 
-
 import * as packageJson from './package.json';
 
 export default defineConfig(configEnv => ({

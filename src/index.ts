@@ -1,26 +1,27 @@
-import type { Draft } from 'immer';
-import { castDraft, produce } from 'immer';
+import type { Draft, Immutable } from 'immer';
+import { castImmutable, produce } from 'immer';
 import type { StateCreator, StoreApi, StoreMutatorIdentifier } from 'zustand';
 
-type Getter<T, A> = (state: T) => A;
-type Updater<T> = (draft: Draft<T>) => void;
-type Setter<T, A> = (nextState: A | Partial<A>, replace?: boolean) => T | Partial<T> | Updater<T>;
-type WithSetter<T, A, R> = A extends object ? (setter?: Setter<T, A>) => R : (setter: Setter<T, A>) => R;
+export type Getter<T, A> = (state: Immutable<T>) => A;
+export type Updater<T> = (draft: Draft<T>) => void;
+export type Setter<T, A> = (nextState: A | Partial<A>, replace?: boolean) => T | Partial<T> | Updater<T>;
 
-interface Nibble<A> {
+export interface Nibble<A> {
     (): StoreApi<A>;
     <Mps extends [StoreMutatorIdentifier, unknown][] = [], Mcs extends [StoreMutatorIdentifier, unknown][] = []>(
         f: StateCreator<A, Mps, Mcs>,
     ): A;
 }
 
-interface Recipe<T, A> {
+export interface Recipe<T, A> {
     (api: StoreApi<T>): StoreApi<A>;
     <Mps extends [StoreMutatorIdentifier, unknown][] = [], Mcs extends [StoreMutatorIdentifier, unknown][] = []>(
         api: StoreApi<T>,
         f: StateCreator<A, Mps, Mcs>,
     ): A;
 }
+
+type WithSetter<T, A, R> = A extends object ? (setter?: Setter<T, A>) => R : (setter: Setter<T, A>) => R;
 
 interface CreateNibble {
     <T>(api: StoreApi<T>): <A>(getter: Getter<T, A>) => WithSetter<T, A, Nibble<A>>;
@@ -29,16 +30,19 @@ interface CreateNibble {
 
 function creator<T, A>(getter: Getter<T, A>, setter: Setter<T, A>): StateCreator<T, [], [], StoreApi<A>> {
     return (set, get, api) => ({
-        getState: () => getter(get()),
-        getInitialState: () => getter(api.getInitialState()),
+        getState: () => getter(castImmutable(get())),
+        getInitialState: () => getter(castImmutable(api.getInitialState())),
         setState: (nextState, replace) => {
             const nextStateOrUpdater = setter(
-                nextState instanceof Function ? nextState(getter(get())) : nextState,
+                nextState instanceof Function ? nextState(getter(castImmutable(get()))) : nextState,
                 replace,
             );
             set(nextStateOrUpdater instanceof Function ? produce<T>(nextStateOrUpdater) : nextStateOrUpdater);
         },
-        subscribe: listener => api.subscribe((state, prevState) => listener(getter(state), getter(prevState))),
+        subscribe: listener =>
+            api.subscribe((state, prevState) =>
+                listener(getter(castImmutable(state)), getter(castImmutable(prevState))),
+            ),
         destroy: () => {
             throw new Error('Do not use destroy(), use unsubscribe returned by subscribe().');
         },
@@ -55,8 +59,8 @@ function createState<T, A>(api: StoreApi<T>, getter: Getter<T, A>, setter: Sette
 }
 
 function objectUpdater<T, A>(getter: Getter<T, A>): Setter<T, A> {
-    return (nextState, replace) => (draft: Draft<T>) => {
-        const childDraft = castDraft(getter(draft as T));
+    return (nextState, replace) => draft => {
+        const childDraft = getter(draft);
         if (replace ?? false) {
             if (Array.isArray(nextState) && Array.isArray(childDraft)) {
                 childDraft.length = 0;
