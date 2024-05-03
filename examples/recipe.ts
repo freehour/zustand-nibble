@@ -3,7 +3,7 @@ import nibble from 'zustand-nibble';
 
 import { createJoe, type ParentState } from './state';
 
-const createChild = nibble<ParentState>()(state => state.child)();
+const createChild = nibble<ParentState>()(state => state.child);
 
 export const useDad = create<ParentState>()((set, get, api) => ({
     name: 'John Doe',
