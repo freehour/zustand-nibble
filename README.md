@@ -52,7 +52,7 @@ npm install zustand-nibble
 ### bun
 
 ```bash
-bun install zuand-nibble
+bun install zustand-nibble
 ```
 
 ## Why not use Immer?
