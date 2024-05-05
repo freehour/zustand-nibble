@@ -41,6 +41,20 @@ const useParent = create<Parent>()((set, get, api) => ({
 
 It returns a function that accepts a `StateCreator` to create the child state, similar to a _zustand_ middleware.
 
+## Installation
+
+### npm
+
+```bash
+npm install reactflow-hooks
+```
+
+### bun
+
+```bash
+bun install reactflow-hooks
+```
+
 ## Why not use Immer?
 
 `immer` and `zustand-nibble` both simplify nested state updates.
