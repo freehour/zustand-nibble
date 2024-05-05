@@ -46,13 +46,13 @@ It returns a function that accepts a `StateCreator` to create the child state, s
 ### npm
 
 ```bash
-npm install reactflow-hooks
+npm install zustand-nibble
 ```
 
 ### bun
 
 ```bash
-bun install reactflow-hooks
+bun install zuand-nibble
 ```
 
 ## Why not use Immer?
