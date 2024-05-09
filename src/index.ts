@@ -1,4 +1,5 @@
 import { castImmutable, produce, type Immutable } from 'immer';
+import { isFunction } from 'is-runtype';
 import type { StateCreator, StoreApi, StoreMutatorIdentifier } from 'zustand';
 
 export type Getter<T, A> = (state: Immutable<T>) => A;
@@ -28,7 +29,7 @@ function creator<T, A extends object>(getter: Getter<T, A>): StateCreator<T, [],
         getState: () => getter(castImmutable(get())),
         getInitialState: () => getter(castImmutable(api.getInitialState())),
         setState: (partial, replace) => {
-            const nextState = partial instanceof Function ? partial(getter(castImmutable(get()))) : partial;
+            const nextState = isFunction(partial) ? partial(getter(castImmutable(get()))) : partial;
             set(
                 produce<T>(draft => {
                     const childDraft = getter(draft);
