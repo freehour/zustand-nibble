@@ -4,6 +4,7 @@ import nibble from 'zustand-nibble';
 import type { ParentState } from './state';
 import { createJoe } from './state';
 
+
 const createChild = nibble<ParentState>()(state => state.child);
 
 const parentStore = createStore<ParentState>()((set, get, api) => ({

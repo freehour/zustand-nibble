@@ -1,6 +1,8 @@
-import { castImmutable, produce, type Immutable } from 'immer';
+import type { Immutable } from 'immer';
+import { castImmutable, produce } from 'immer';
 import { isFunction } from 'is-runtype';
 import type { StateCreator, StoreApi, StoreMutatorIdentifier } from 'zustand';
+
 
 export type Getter<T, A> = (state: Immutable<T>) => A;
 
@@ -52,10 +54,7 @@ function creator<T, A extends object>(getter: Getter<T, A>): StateCreator<T, [],
                 }),
             );
         },
-        subscribe: listener =>
-            api.subscribe((state, prevState) =>
-                listener(getter(castImmutable(state)), getter(castImmutable(prevState))),
-            ),
+        subscribe: listener => api.subscribe((state, prevState) => listener(getter(castImmutable(state)), getter(castImmutable(prevState)))),
         destroy: () => {
             throw new Error('Do not use destroy(), use unsubscribe returned by subscribe().');
         },
@@ -76,11 +75,9 @@ function createNibble<T, A extends object>(api: StoreApi<T>, getter: Getter<T, A
 }
 
 function createRecipe<T, A extends object>(getter: Getter<T, A>): Recipe<T, A> {
-    return ((api: StoreApi<T>, f?: StateCreator<A>) =>
-        f ? createState(api, getter, f) : createStore(api, getter)) as Recipe<T, A>;
+    return ((api: StoreApi<T>, f?: StateCreator<A>) => f ? createState(api, getter, f) : createStore(api, getter)) as Recipe<T, A>;
 }
 
-/* eslint-disable jsdoc/check-param-names */
 /**
  *
  * Defines a nibble.
@@ -121,7 +118,6 @@ function createRecipe<T, A extends object>(getter: Getter<T, A>): Recipe<T, A> {
  * @param getter A function that extracts the nibble from the parent state, e.g. `state => state.child`.
  * @returns A nibble or recipe.
  */
-const nibble: CreateNibble = (<T>(api?: StoreApi<T>) =>
-    api ? <A extends object>(getter: Getter<T, A>) => createNibble(api, getter) : createRecipe) as CreateNibble;
+const nibble: CreateNibble = (<T>(api?: StoreApi<T>) => api ? <A extends object>(getter: Getter<T, A>) => createNibble(api, getter) : createRecipe) as CreateNibble;
 
 export default nibble;
