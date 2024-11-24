@@ -1,3 +1,4 @@
+import type { Immutable } from 'immer';
 import type { StateCreator } from 'zustand';
 
 
@@ -7,12 +8,12 @@ export interface ChildState {
     birthday: () => void;
 }
 
-export interface ParentState {
+export type ParentState = Immutable<{
     name: string;
     age: number;
     child: ChildState;
     birthday: () => void;
-}
+}>;
 
 export const createJoe: StateCreator<ChildState> = set => ({
     name: 'Joe Doe',

@@ -1,7 +1,7 @@
 # zustand-nibble
 
 Split a _zustand_ store into smaller pieces, called _nibbles_.
-Compared to [slices](https://docs.pmnd.rs/zustand/guides/slices-pattern) which are spread at the top-level of the store, nibbles can be placed **anywhere** in the parent store.
+Compared to [slices](https://docs.pmnd.rs/zustand/guides/slices-pattern) which are spread at the top-level of the store, a nibble can be placed **anywhere** in the parent store.
 
 ```typescript
 import { type StateCreator, create } from 'zustand';
@@ -34,10 +34,11 @@ const useParent = create<Parent>()((set, get, api) => ({
 }));
 ```
 
-`nibble(api)(getter)` receives the following arguments:
+`nibble(api)(getter, setter?)` receives the following arguments:
 
--   The parent store `api`.
--   A `getter` that extracts the child state from the parent state.
+- The parent store `api`
+- A `getter` that extracts the child's state from the parent state
+- A custom `setter` for the parent state, required for middlewares mutating `setState`
 
 It returns a function that accepts a `StateCreator` to create the child state, similar to a _zustand_ middleware.
 
@@ -68,6 +69,58 @@ In the example above, `createJoe` is independent of the parent state. It can be 
 
 Naturally, `immer` and `zustand-nibble` can be used together.
 
+## Use with middlewares
+
+You can use any middleware on the child store by applying it to your state creator:
+
+```typescript
+const useParent = create<Parent>()((set, get, api) => ({
+    name: 'John Doe',
+    age: 42,
+    child: nibble(api)(state => state.child)(immer(set => ({ // <- apply immer middleware
+        name: 'Joe Doe',
+        age: 10,
+        birthday: () => set(draft => { draft.age += 1 }),
+    }))),
+    birthday: () => set(state => ({ age: state.age + 1 })),
+}));
+```
+
+If you use a middleware on the parent store that mutates the `setState` function, you may need to provide a custom setter to the nibble.
+
+### Immer
+
+As nibble uses _immer_ to update the parent state, you can just pass the `set` function when using the immer middleware on the parent store.
+```typescript
+const useParent = create<Parent>()(immer((set, get, api) => ({
+    name: 'John Doe',
+    age: 42,
+    child: nibble(api)(state => state.child, set)(createJoe), // <- pass mutated set function
+    birthday: () => set(state => ({ age: state.age + 1 })),
+})));
+```
+
+### Custom Setter
+
+You have to provide a custom `setter` if the `setState` function is not compatible with the standard form:
+
+```typescript
+type SetState<T>: (nextState: (state: T) => T) => void;
+```
+
+The `setter` must be a function that accepts an `updater` working on an _immer_ draft.
+
+```typescript
+type Setter<T> = (updater: (draft: Draft<T>) => void) => void;
+```
+
+The default `setter` uses _immer_'s `produce` to update the parent state.
+
+```typescript
+const defaultSetter: Setter<T> = updater => api.setState(produce<T>(updater))
+```
+
+
 ## Use as Recipe
 
 The function returned by `nibble` can be used as a recipe in multiple stores.
@@ -79,36 +132,19 @@ const createChild = nibble<Parent>()(state => state.child); // Recipe<Parent, Ch
 const useDad = create<Parent>()((set, get, api) => ({
     name: 'John Doe',
     age: 42,
-    child: createChild(api, createJoe), // call recipe
+    child: createChild(api)(createJoe), // call recipe
     //...
 }));
 
 const useMom = create<Parent>()((set, get, api) => ({
     name: 'Jane Doe',
     age: 37,
-    child: createChild(api, createJoe), // call recipe
+    child: createChild(api)(createJoe), // call recipe
     //...
 }));
 
 /* Note that the childs are separate instances.
 There is no state sharing through nibbles */
-```
-
-## Create a Store API
-
-To create a store API for the child state, simply omit the state creator.
-
-```typescript
-const createChild = nibble<Parent>()(state => state.child); // Recipe<Parent, Child>
-
-const parentStore = createStore<Parent>()((set, get, api) => ({
-    name: 'John Doe',
-    age: 42,
-    child: createChild(api, createJoe), // Child
-    //...
-}));
-
-const childStore = createChild(parentStore); // StoreApi<Child>
 ```
 
 ### Arrays

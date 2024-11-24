@@ -25,7 +25,7 @@ export const useTodoList = create<TodoList>()((set, get, api) => ({
     addTodo: (id, text) => set(state => ({
         todos: [
             ...state.todos,
-            createTodo(id)(api, set => ({
+            createTodo(id)(api)(set => ({
                 id,
                 text,
                 done: false,
